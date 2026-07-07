@@ -287,6 +287,23 @@ function updatePlayer() {
         return world.getCollidingBlocks(box).length > 0;
     };
 
+    // Resolver movimento Y antes de X/Z para usar a altura correta durante colisões diagonais
+    const yPosition = player.position.clone();
+    yPosition.y = nextPosition.y;
+    if (!collidesAt(yPosition)) {
+        player.position.y = yPosition.y;
+        player.isOnGround = false;
+    } else {
+        if (player.velocity.y < 0) {
+            const collidingBlocks = world.getCollidingBlocks(createPlayerBox(yPosition));
+            const highestBlockY = collidingBlocks.reduce((maxY, block) => Math.max(maxY, block.y), -Infinity);
+            const correctedY = highestBlockY + 1 + player.eyeHeight;
+            player.position.y = correctedY;
+            player.isOnGround = true;
+        }
+        player.velocity.y = 0;
+    }
+
     // Resolver movimento X
     const xPosition = player.position.clone();
     xPosition.x = nextPosition.x;
@@ -304,27 +321,6 @@ function updatePlayer() {
     } else {
         player.velocity.z = 0;
     }
-
-    // Resolver movimento Y
-    const yPosition = player.position.clone();
-    yPosition.y = nextPosition.y;
-    if (!collidesAt(yPosition)) {
-        player.position.y = yPosition.y;
-        player.isOnGround = false;
-    } else {
-        if (player.velocity.y < 0) {
-            const collidingBlocks = world.getCollidingBlocks(createPlayerBox(yPosition));
-            const highestBlockY = collidingBlocks.reduce((maxY, block) => Math.max(maxY, block.y), -Infinity);
-            const correctedY = highestBlockY + 1 + player.eyeHeight;
-            player.position.y = correctedY;
-            player.isOnGround = true;
-        }
-        player.velocity.y = 0;
-    }
-
-    // Limites do mundo
-    const worldBounds = world.getBounds(1);
-    player.position.clamp(worldBounds.min, worldBounds.max);
 
     // Atualizar câmera para acompanhar player
     camera.position.copy(player.position);

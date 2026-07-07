@@ -102,7 +102,7 @@ export default class Chunk {
                             worldZ + face.offset[2]
                         );
 
-                        if (neighborBlock && neighborBlock.solid) {
+                        if (neighborBlock && neighborBlock.solid && !neighborBlock.transparent) {
                             continue;
                         }
 
