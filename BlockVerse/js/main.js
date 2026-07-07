@@ -98,7 +98,8 @@ function initPlayer() {
         groundFriction: 0.8,
         airFriction: 0.95,
         radius: 0.35,
-        eyeHeight: 1.7
+        eyeHeight: 1.7,
+        stepHeight: 1
     };
 
     // Atualizar posição da câmera para posição do player
@@ -305,20 +306,38 @@ function updatePlayer() {
     }
 
     // Resolver movimento X
-    const xPosition = player.position.clone();
-    xPosition.x = nextPosition.x;
-    if (!collidesAt(xPosition)) {
-        player.position.x = xPosition.x;
-    } else {
+    const tryAxisMove = (axis, nextValue) => {
+        const testPosition = player.position.clone();
+        testPosition[axis] = nextValue;
+
+        if (!collidesAt(testPosition)) {
+            player.position[axis] = nextValue;
+            return true;
+        }
+
+        if (player.stepHeight > 0) {
+            const steppedPosition = player.position.clone();
+            steppedPosition[axis] = nextValue;
+            steppedPosition.y += player.stepHeight;
+
+            if (!collidesAt(steppedPosition)) {
+                player.position[axis] = nextValue;
+                player.position.y = steppedPosition.y;
+                player.isOnGround = true;
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    // Resolver movimento X
+    if (!tryAxisMove('x', nextPosition.x)) {
         player.velocity.x = 0;
     }
 
     // Resolver movimento Z
-    const zPosition = player.position.clone();
-    zPosition.z = nextPosition.z;
-    if (!collidesAt(zPosition)) {
-        player.position.z = zPosition.z;
-    } else {
+    if (!tryAxisMove('z', nextPosition.z)) {
         player.velocity.z = 0;
     }
 
