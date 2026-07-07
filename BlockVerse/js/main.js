@@ -264,10 +264,9 @@ function updatePlayer() {
     const stepPosition = player.position.clone();
     const nextPosition = player.position.clone().add(player.velocity);
 
-    const createPlayerBox = (position, options = {}) => {
-        const useUpperBody = options.ignoreGround === true;
-        const minY = position.y - player.eyeHeight + (useUpperBody ? 1.0 : 0);
-        const maxY = position.y + (useUpperBody ? -0.1 : 0);
+    const createPlayerBox = (position) => {
+        const minY = position.y - player.eyeHeight;
+        const maxY = position.y;
 
         return new THREE.Box3(
             new THREE.Vector3(
@@ -283,15 +282,15 @@ function updatePlayer() {
         );
     };
 
-    const collidesAt = (position, options = {}) => {
-        const box = createPlayerBox(position, options);
+    const collidesAt = (position) => {
+        const box = createPlayerBox(position);
         return world.getCollidingBlocks(box).length > 0;
     };
 
     // Resolver movimento X
     const xPosition = player.position.clone();
     xPosition.x = nextPosition.x;
-    if (!collidesAt(xPosition, { ignoreGround: true })) {
+    if (!collidesAt(xPosition)) {
         player.position.x = xPosition.x;
     } else {
         player.velocity.x = 0;
@@ -300,7 +299,7 @@ function updatePlayer() {
     // Resolver movimento Z
     const zPosition = player.position.clone();
     zPosition.z = nextPosition.z;
-    if (!collidesAt(zPosition, { ignoreGround: true })) {
+    if (!collidesAt(zPosition)) {
         player.position.z = zPosition.z;
     } else {
         player.velocity.z = 0;
@@ -314,8 +313,10 @@ function updatePlayer() {
         player.isOnGround = false;
     } else {
         if (player.velocity.y < 0) {
-            const groundY = Math.floor(player.position.y - player.eyeHeight + 0.01);
-            player.position.y = groundY + player.eyeHeight + 0.01;
+            const collidingBlocks = world.getCollidingBlocks(createPlayerBox(yPosition));
+            const highestBlockY = collidingBlocks.reduce((maxY, block) => Math.max(maxY, block.y), -Infinity);
+            const correctedY = highestBlockY + 1 + player.eyeHeight;
+            player.position.y = correctedY;
             player.isOnGround = true;
         }
         player.velocity.y = 0;

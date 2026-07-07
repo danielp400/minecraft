@@ -11,6 +11,8 @@ export default class World {
         this.chunks = new Map();
         this.scene = null;
         this.chunkBuildQueue = [];
+        this.pendingBuildChunks = new Set();
+        this.chunkNeedsRebuild = new Set();
         this.isBuilding = false;
         this.lastPlayerChunk = { x: null, z: null };
     }
@@ -36,6 +38,7 @@ export default class World {
         }
         chunk.disposeMesh?.();
         this.chunks.delete(key);
+        this.rebuildNeighborChunks(chunkX, chunkZ);
     }
 
     getChunk(chunkX, chunkZ) {
@@ -50,9 +53,17 @@ export default class World {
         this.fillChunkTerrain(chunk);
         this.addChunk(chunk);
         this.queueChunkBuild(chunk);
+        this.rebuildNeighborChunks(chunkX, chunkZ);
     }
 
     queueChunkBuild(chunk) {
+        const key = this.getChunkKey(chunk.chunkX, chunk.chunkZ);
+        if (this.pendingBuildChunks.has(key)) {
+            this.chunkNeedsRebuild.add(key);
+            return;
+        }
+
+        this.pendingBuildChunks.add(key);
         this.chunkBuildQueue.push(chunk);
         if (!this.isBuilding) {
             this.processBuildQueue();
@@ -69,9 +80,32 @@ export default class World {
         const chunk = this.chunkBuildQueue.shift();
         this.requestIdleCallback(() => {
             if (chunk) {
+                const key = this.getChunkKey(chunk.chunkX, chunk.chunkZ);
+                this.pendingBuildChunks.delete(key);
                 chunk.buildMesh(this);
+
+                if (this.chunkNeedsRebuild.has(key)) {
+                    this.chunkNeedsRebuild.delete(key);
+                    this.queueChunkBuild(chunk);
+                }
             }
             this.processBuildQueue();
+        });
+    }
+
+    rebuildNeighborChunks(chunkX, chunkZ) {
+        const neighborOffsets = [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1]
+        ];
+
+        neighborOffsets.forEach(([dx, dz]) => {
+            const neighbor = this.getChunk(chunkX + dx, chunkZ + dz);
+            if (neighbor) {
+                this.queueChunkBuild(neighbor);
+            }
         });
     }
 
@@ -159,9 +193,9 @@ export default class World {
             Math.floor(box.min.z)
         );
         const max = new THREE.Vector3(
-            Math.floor(box.max.x),
-            Math.floor(box.max.y),
-            Math.floor(box.max.z)
+            Math.ceil(box.max.x) - 1,
+            Math.ceil(box.max.y) - 1,
+            Math.ceil(box.max.z) - 1
         );
 
         const collisions = [];
