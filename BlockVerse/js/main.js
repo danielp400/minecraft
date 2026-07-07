@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import BlockManager from './blocks/BlockManager.js';
+import { registerDefaultBlocks } from './blocks/BlockTypes.js';
+import World from './terrain/World.js';
 
 // ============================================================================
 // 🎮 BLOCKVERSE - Arquitetura Principal do Jogo
@@ -9,12 +12,14 @@ const gameState = {
     isGameStarted: false,
     isGameRunning: false,
     deltaTime: 0,
-    clock: new THREE.Clock()
+    clock: new THREE.Clock(),
+    frameCount: 0
 };
 
 // Referências globais
 let scene, camera, renderer;
 let player, controls;
+let blockManager, world;
 
 // ============================================================================
 // 1️⃣ INICIALIZAR CENA
@@ -44,7 +49,7 @@ function initScene() {
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.pixelRatio = window.devicePixelRatio;
 
     // Adicionar iluminação
@@ -62,18 +67,18 @@ function initScene() {
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-    // Criar plano base (chão)
-    const groundGeometry = new THREE.BoxGeometry(200, 1, 200);
-    const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x2d8a3d });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.receiveShadow = true;
-    ground.position.y = 0;
-    scene.add(ground);
-
-    // Adicionar algumas estruturas simples
-    addTestStructures();
+    initWorld();
 
     console.log('✅ Cena inicializada com sucesso!');
+}
+
+function initWorld() {
+    blockManager = new BlockManager();
+    registerDefaultBlocks(blockManager);
+
+    world = new World(blockManager, 16, 128, 2, 4);
+    world.setScene(scene);
+    world.generateTerrain(2, scene);
 }
 
 // ============================================================================
@@ -81,16 +86,20 @@ function initScene() {
 // ============================================================================
 
 function initPlayer() {
-    // Criar objeto do jogador
+    const surfaceY = world.getSurfaceHeight(0, 0);
+    const spawnY = surfaceY + 1 + 1.7 + 0.01;
     player = {
-        position: new THREE.Vector3(0, 1.7, 10),
+        position: new THREE.Vector3(0, spawnY, 0),
         velocity: new THREE.Vector3(0, 0, 0),
         isOnGround: false,
         speed: 0.15, // Unidades por frame
         jumpForce: 0.25,
         gravity: -0.02,
         groundFriction: 0.8,
-        airFriction: 0.95
+        airFriction: 0.95,
+        radius: 0.35,
+        eyeHeight: 1.7,
+        stepHeight: 1
     };
 
     // Atualizar posição da câmera para posição do player
@@ -243,30 +252,94 @@ function updatePlayer() {
     // Aplicar gravidade
     player.velocity.y += player.gravity;
 
-    // Detecção de colisão com chão
-    if (camera.position.y <= 1.7) {
-        player.velocity.y = 0;
-        player.isOnGround = true;
-
-        // Pulo (espaço)
-        if (controls.keys[' ']) {
-            player.velocity.y = player.jumpForce;
-            player.isOnGround = false;
-        }
-    } else {
+    // Pulo (espaço)
+    if (controls.keys[' '] && player.isOnGround) {
+        player.velocity.y = player.jumpForce;
         player.isOnGround = false;
     }
 
-    // Aplicar atrito
     const frictionFactor = player.isOnGround ? player.groundFriction : player.airFriction;
     player.velocity.x *= frictionFactor;
     player.velocity.z *= frictionFactor;
 
-    // Atualizar posição do player
-    player.position.addScaledVector(player.velocity, 1);
+    const stepPosition = player.position.clone();
+    const nextPosition = player.position.clone().add(player.velocity);
 
-    // Limites do mundo
-    player.position.clamp(new THREE.Vector3(-100, 0, -100), new THREE.Vector3(100, 50, 100));
+    const createPlayerBox = (position) => {
+        const minY = position.y - player.eyeHeight;
+        const maxY = position.y;
+
+        return new THREE.Box3(
+            new THREE.Vector3(
+                position.x - player.radius,
+                minY,
+                position.z - player.radius
+            ),
+            new THREE.Vector3(
+                position.x + player.radius,
+                maxY,
+                position.z + player.radius
+            )
+        );
+    };
+
+    const collidesAt = (position) => {
+        const box = createPlayerBox(position);
+        return world.getCollidingBlocks(box).length > 0;
+    };
+
+    // Resolver movimento Y antes de X/Z para usar a altura correta durante colisões diagonais
+    const yPosition = player.position.clone();
+    yPosition.y = nextPosition.y;
+    if (!collidesAt(yPosition)) {
+        player.position.y = yPosition.y;
+        player.isOnGround = false;
+    } else {
+        if (player.velocity.y < 0) {
+            const collidingBlocks = world.getCollidingBlocks(createPlayerBox(yPosition));
+            const highestBlockY = collidingBlocks.reduce((maxY, block) => Math.max(maxY, block.y), -Infinity);
+            const correctedY = highestBlockY + 1 + player.eyeHeight;
+            player.position.y = correctedY;
+            player.isOnGround = true;
+        }
+        player.velocity.y = 0;
+    }
+
+    // Resolver movimento X
+    const tryAxisMove = (axis, nextValue) => {
+        const testPosition = player.position.clone();
+        testPosition[axis] = nextValue;
+
+        if (!collidesAt(testPosition)) {
+            player.position[axis] = nextValue;
+            return true;
+        }
+
+        if (player.stepHeight > 0) {
+            const steppedPosition = player.position.clone();
+            steppedPosition[axis] = nextValue;
+            steppedPosition.y += player.stepHeight;
+
+            if (!collidesAt(steppedPosition)) {
+                player.position[axis] = nextValue;
+                player.position.y = steppedPosition.y;
+                player.isOnGround = true;
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    // Resolver movimento X
+    if (!tryAxisMove('x', nextPosition.x)) {
+        player.velocity.x = 0;
+    }
+
+    // Resolver movimento Z
+    if (!tryAxisMove('z', nextPosition.z)) {
+        player.velocity.z = 0;
+    }
 
     // Atualizar câmera para acompanhar player
     camera.position.copy(player.position);
@@ -323,6 +396,7 @@ function animate() {
     // Atualizar player
     if (gameState.isGameRunning) {
         updatePlayer();
+        world.update(player.position);
     }
 
     // Renderizar cena

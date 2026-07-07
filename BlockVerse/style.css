@@ -53,31 +53,19 @@ html, body {
     }
     25%, 75% {
         opacity: 0.5;
-
-align-items:center;
-
-flex-direction:column;
-
-background:#111;
-
-color:white;
-
-z-index:100;
-
+    }
 }
 
-#menu h1{
-
-font-size:60px;
-
-margin-bottom:20px;
-
-letter-spacing:5px;
-
+#menu h1 {
+    font-size: 4rem;
+    margin-bottom: 2rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
 }
 
-#menu p{
-
-font-size:24px;
-
+#menu p {
+    font-size: 1.5rem;
+    color: #aaa;
+    animation: blink 1.5s infinite;
 }
