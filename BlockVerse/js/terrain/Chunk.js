@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const FACES = [
-    { name: 'top', offset: [0, 1, 0], rotation: [ -Math.PI / 2, 0, 0 ], translate: [0, 1, 0] },
-    { name: 'bottom', offset: [0, -1, 0], rotation: [ Math.PI / 2, 0, 0 ], translate: [0, 0, 0] },
-    { name: 'north', offset: [0, 0, 1], rotation: [0, 0, 0], translate: [0, 0, 1] },
-    { name: 'south', offset: [0, 0, -1], rotation: [0, Math.PI, 0], translate: [0, 0, 0] },
-    { name: 'east', offset: [1, 0, 0], rotation: [0, -Math.PI / 2, 0], translate: [1, 0, 0] },
-    { name: 'west', offset: [-1, 0, 0], rotation: [0, Math.PI / 2, 0], translate: [0, 0, 0] }
+    { offset: [0, 1, 0], rotation: [ -Math.PI / 2, 0, 0 ], translate: [0, 1, 0] },
+    { offset: [0, -1, 0], rotation: [ Math.PI / 2, 0, 0 ], translate: [0, 0, 0] },
+    { offset: [0, 0, 1], rotation: [0, 0, 0], translate: [0, 0, 1] },
+    { offset: [0, 0, -1], rotation: [0, Math.PI, 0], translate: [0, 0, 0] },
+    { offset: [1, 0, 0], rotation: [0, -Math.PI / 2, 0], translate: [1, 0, 0] },
+    { offset: [-1, 0, 0], rotation: [0, Math.PI / 2, 0], translate: [0, 0, 0] }
 ];
 
 export default class Chunk {
-    constructor(chunkX, chunkZ, blockManager, size = 16, height = 32) {
+    constructor(chunkX, chunkZ, blockManager, size = 16, height = 128) {
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;
         this.size = size;
@@ -19,6 +19,7 @@ export default class Chunk {
         this.blockManager = blockManager;
         this.blocks = new Uint16Array(size * size * height);
         this.mesh = null;
+        this.material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
 
         this.fillWithAir();
     }
@@ -50,13 +51,39 @@ export default class Chunk {
         return this.blockManager.getBlock(id);
     }
 
+    disposeMesh() {
+        if (!this.mesh) return;
+        this.mesh.traverse((child) => {
+            if (child.isMesh) {
+                child.geometry.dispose();
+            }
+        });
+        this.mesh = null;
+    }
+
+    createFaceGeometry(face, color) {
+        const geometry = new THREE.PlaneGeometry(1, 1);
+        const vertexCount = geometry.attributes.position.count;
+        const colorArray = new Float32Array(vertexCount * 3);
+        for (let i = 0; i < vertexCount; i += 1) {
+            colorArray[i * 3 + 0] = color.r;
+            colorArray[i * 3 + 1] = color.g;
+            colorArray[i * 3 + 2] = color.b;
+        }
+        geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+        geometry.rotateX(face.rotation[0]);
+        geometry.rotateY(face.rotation[1]);
+        geometry.rotateZ(face.rotation[2]);
+        return geometry;
+    }
+
     buildMesh(world) {
         if (this.mesh) {
             world.scene.remove(this.mesh);
-            this.mesh = null;
+            this.disposeMesh();
         }
 
-        const geometryBuckets = new Map();
+        const geometryList = [];
 
         for (let x = 0; x < this.size; x += 1) {
             for (let y = 0; y < this.height; y += 1) {
@@ -66,6 +93,7 @@ export default class Chunk {
 
                     const worldX = x + this.chunkX * this.size;
                     const worldZ = z + this.chunkZ * this.size;
+                    const blockColor = new THREE.Color(block.color);
 
                     for (const face of FACES) {
                         const neighborBlock = world.getBlockAt(
@@ -78,39 +106,29 @@ export default class Chunk {
                             continue;
                         }
 
-                        const faceGeometry = new THREE.PlaneGeometry(1, 1);
-                        faceGeometry.rotateX(face.rotation[0]);
-                        faceGeometry.rotateY(face.rotation[1]);
-                        faceGeometry.rotateZ(face.rotation[2]);
+                        const faceGeometry = this.createFaceGeometry(face, blockColor);
                         faceGeometry.translate(
                             worldX + face.translate[0] + 0.5,
                             y + face.translate[1] + 0.5,
                             worldZ + face.translate[2] + 0.5
                         );
-
-                        const bucketKey = block.id;
-                        if (!geometryBuckets.has(bucketKey)) {
-                            geometryBuckets.set(bucketKey, []);
-                        }
-                        geometryBuckets.get(bucketKey).push(faceGeometry);
+                        geometryList.push(faceGeometry);
                     }
                 }
             }
         }
 
-        const group = new THREE.Group();
+        if (geometryList.length === 0) {
+            this.mesh = null;
+            return;
+        }
 
-        geometryBuckets.forEach((geometries, blockId) => {
-            const mergedGeometry = mergeGeometries(geometries, false);
-            mergedGeometry.computeVertexNormals();
-            const block = this.blockManager.getBlock(blockId);
-            const mesh = new THREE.Mesh(mergedGeometry, block.material);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            group.add(mesh);
-        });
+        const mergedGeometry = mergeGeometries(geometryList, false);
+        mergedGeometry.computeVertexNormals();
 
-        this.mesh = group;
+        this.mesh = new THREE.Mesh(mergedGeometry, this.material);
+        this.mesh.castShadow = true;
+        this.mesh.receiveShadow = true;
         world.scene.add(this.mesh);
     }
 }

@@ -76,8 +76,9 @@ function initWorld() {
     blockManager = new BlockManager();
     registerDefaultBlocks(blockManager);
 
-    world = new World(blockManager);
-    world.generateTerrain(1, scene);
+    world = new World(blockManager, 16, 128, 2, 4);
+    world.setScene(scene);
+    world.generateTerrain(2, scene);
 }
 
 // ============================================================================
@@ -372,20 +373,17 @@ function addTestStructures() {
 
 function animate() {
     requestAnimationFrame(animate);
-    gameState.frameCount += 1;
-    console.log('animate', gameState.frameCount);
 
     // Calcular delta time
     gameState.deltaTime = gameState.clock.getDelta();
 
     // Atualizar player
     if (gameState.isGameRunning) {
-        console.log('player.update');
         updatePlayer();
+        world.update(player.position);
     }
 
     // Renderizar cena
-    console.log('render');
     renderer.render(scene, camera);
 }
 
