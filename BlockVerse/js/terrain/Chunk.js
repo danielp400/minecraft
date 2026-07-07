@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const FACES = [
-    { offset: [0, 1, 0], rotation: [ -Math.PI / 2, 0, 0 ], translate: [0, 1, 0] },
-    { offset: [0, -1, 0], rotation: [ Math.PI / 2, 0, 0 ], translate: [0, 0, 0] },
-    { offset: [0, 0, 1], rotation: [0, 0, 0], translate: [0, 0, 1] },
-    { offset: [0, 0, -1], rotation: [0, Math.PI, 0], translate: [0, 0, 0] },
-    { offset: [1, 0, 0], rotation: [0, -Math.PI / 2, 0], translate: [1, 0, 0] },
-    { offset: [-1, 0, 0], rotation: [0, Math.PI / 2, 0], translate: [0, 0, 0] }
+    { offset: [0, 1, 0], rotation: [ -Math.PI / 2, 0, 0 ], translate: [0, 0.5, 0] },
+    { offset: [0, -1, 0], rotation: [ Math.PI / 2, 0, 0 ], translate: [0, -0.5, 0] },
+    { offset: [0, 0, 1], rotation: [0, 0, 0], translate: [0, 0, 0.5] },
+    { offset: [0, 0, -1], rotation: [0, Math.PI, 0], translate: [0, 0, -0.5] },
+    { offset: [1, 0, 0], rotation: [0, -Math.PI / 2, 0], translate: [0.5, 0, 0] },
+    { offset: [-1, 0, 0], rotation: [0, Math.PI / 2, 0], translate: [-0.5, 0, 0] }
 ];
 
 export default class Chunk {

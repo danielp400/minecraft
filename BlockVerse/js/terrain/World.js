@@ -187,15 +187,16 @@ export default class World {
     }
 
     getCollidingBlocks(box) {
+        const EPSILON = 1e-4;
         const min = new THREE.Vector3(
-            Math.floor(box.min.x),
-            Math.floor(box.min.y),
-            Math.floor(box.min.z)
+            Math.floor(box.min.x + EPSILON),
+            Math.floor(box.min.y + EPSILON),
+            Math.floor(box.min.z + EPSILON)
         );
         const max = new THREE.Vector3(
-            Math.ceil(box.max.x) - 1,
-            Math.ceil(box.max.y) - 1,
-            Math.ceil(box.max.z) - 1
+            Math.ceil(box.max.x - EPSILON) - 1,
+            Math.ceil(box.max.y - EPSILON) - 1,
+            Math.ceil(box.max.z - EPSILON) - 1
         );
 
         const collisions = [];
