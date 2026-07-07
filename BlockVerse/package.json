@@ -1,0 +1,17 @@
+{
+  "name": "blockverse",
+  "version": "1.0.0",
+  "description": "Um jogo estilo Minecraft com Three.js e Vite",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.179.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
